@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import ImageSlider from "../components/ImageSlider";
-import SignUpPage from '../components/login';
+import SignUpPage from '../components/SignUp';
 import img1 from '../assets/img1.jpg';
 import img2 from '../assets/img2.jpg';
 import img3 from '../assets/img3.jpg';
