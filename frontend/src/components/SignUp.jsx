@@ -1,32 +1,27 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   User,
   Mail,
   Lock,
-  Phone,
-  MapPin,
-  Building2,
   GraduationCap,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 
 const SignUpPage = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
+    name: "",
     email: "",
     password: "",
     confirmPassword: "",
-    contactNumber: "",
-    city: "",
-    district: "",
-    instituteName: "",
-    role: "Student",
+    role: "student",
   });
 
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState({ type: '', content: '' });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -34,30 +29,49 @@ const SignUpPage = () => {
       ...prev,
       [name]: value,
     }));
+    
+    // Clear specific field error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
         [name]: "",
       }));
     }
+    
+    // Clear general message
+    if (message.content) {
+      setMessage({ type: '', content: '' });
+    }
   };
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
-    if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required";
-    if (!formData.city.trim()) newErrors.city = "City is required";
-    if (!formData.district.trim()) newErrors.district = "District is required";
-    if (!formData.instituteName.trim()) newErrors.instituteName = "Institute name is required";
+    
+    // Name validation
+    if (!formData.name.trim()) {
+      newErrors.name = "Name is required";
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = "Name must be at least 2 characters long";
+    }
 
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid";
+    // Email validation
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
 
-    if (!formData.password.trim()) newErrors.password = "Password is required";
-    else if (formData.password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    // Password validation
+    if (!formData.password.trim()) {
+      newErrors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters long";
+    }
 
-    if (formData.password !== formData.confirmPassword) {
+    // Confirm password validation
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
     }
 
@@ -65,12 +79,59 @@ const SignUpPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      localStorage.setItem("token", "dummy-token");
-      localStorage.setItem("role", formData.role.toLowerCase());
-      navigate("/admin", { replace: true });
+    
+    if (!validateForm()) {
+      setMessage({ type: 'error', content: 'Please fix the errors above' });
+      return;
+    }
+
+    setLoading(true);
+    setMessage({ type: '', content: '' });
+
+    try {
+      const response = await fetch('http://localhost:3000/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.token) {
+        // Store token and role in localStorage
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('role', data.role);
+        
+        setMessage({ 
+          type: 'success', 
+          content: 'Account created successfully! Redirecting to dashboard...' 
+        });
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          window.location.href = '/admin'; // Use location.href for full page reload
+        }, 1500);
+        
+      } else {
+        throw new Error(data.message || 'Failed to create account');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      setMessage({ 
+        type: 'error', 
+        content: error.message || 'Failed to create account. Please try again.' 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -113,33 +174,38 @@ const SignUpPage = () => {
             </p>
           </div>
 
+          {/* Message Display */}
+          {message.content && (
+            <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
+              message.type === 'success' 
+                ? 'bg-green-50 text-green-800 border border-green-200' 
+                : 'bg-red-50 text-red-800 border border-red-200'
+            }`}>
+              {message.type === 'success' ? (
+                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              )}
+              <span className="font-medium">{message.content}</span>
+            </div>
+          )}
+
           {/* Signup Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="relative">
-                <User className="absolute top-3 left-3 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  name="firstName"
-                  placeholder="First Name"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
-                />
-                {errors.firstName && <p className="text-red-500 text-xs">{errors.firstName}</p>}
-              </div>
-              <div className="relative">
-                <User className="absolute top-3 left-3 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  name="lastName"
-                  placeholder="Last Name"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
-                />
-                {errors.lastName && <p className="text-red-500 text-xs">{errors.lastName}</p>}
-              </div>
+            <div className="relative">
+              <User className="absolute top-3 left-3 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                name="name"
+                placeholder="Full Name"
+                value={formData.name}
+                onChange={handleInputChange}
+                className={`w-full pl-9 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm transition-colors ${
+                  errors.name ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+                disabled={loading}
+              />
+              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
             </div>
 
             <div className="relative">
@@ -150,9 +216,12 @@ const SignUpPage = () => {
                 placeholder="Email Address"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
+                className={`w-full pl-9 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm transition-colors ${
+                  errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+                disabled={loading}
               />
-              {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
             </div>
 
             <div className="relative">
@@ -163,9 +232,12 @@ const SignUpPage = () => {
                 placeholder="Password"
                 value={formData.password}
                 onChange={handleInputChange}
-                className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
+                className={`w-full pl-9 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm transition-colors ${
+                  errors.password ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+                disabled={loading}
               />
-              {errors.password && <p className="text-red-500 text-xs">{errors.password}</p>}
+              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
             </div>
 
             <div className="relative">
@@ -176,62 +248,12 @@ const SignUpPage = () => {
                 placeholder="Confirm Password"
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
-                className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
+                className={`w-full pl-9 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm transition-colors ${
+                  errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+                disabled={loading}
               />
-              {errors.confirmPassword && <p className="text-red-500 text-xs">{errors.confirmPassword}</p>}
-            </div>
-
-            <div className="relative">
-              <Phone className="absolute top-3 left-3 w-4 h-4 text-gray-400" />
-              <input
-                type="tel"
-                name="contactNumber"
-                placeholder="Contact Number"
-                value={formData.contactNumber}
-                onChange={handleInputChange}
-                className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
-              />
-              {errors.contactNumber && <p className="text-red-500 text-xs">{errors.contactNumber}</p>}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="relative">
-                <MapPin className="absolute top-3 left-3 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  name="city"
-                  placeholder="City"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
-                />
-                {errors.city && <p className="text-red-500 text-xs">{errors.city}</p>}
-              </div>
-              <div className="relative">
-                <MapPin className="absolute top-3 left-3 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  name="district"
-                  placeholder="District"
-                  value={formData.district}
-                  onChange={handleInputChange}
-                  className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
-                />
-                {errors.district && <p className="text-red-500 text-xs">{errors.district}</p>}
-              </div>
-            </div>
-
-            <div className="relative">
-              <Building2 className="absolute top-3 left-3 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                name="instituteName"
-                placeholder="Institute Name"
-                value={formData.instituteName}
-                onChange={handleInputChange}
-                className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
-              />
-              {errors.instituteName && <p className="text-red-500 text-xs">{errors.instituteName}</p>}
+              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
             </div>
 
             <div className="relative">
@@ -241,18 +263,29 @@ const SignUpPage = () => {
                 value={formData.role}
                 onChange={handleInputChange}
                 className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm"
+                disabled={loading}
               >
-                <option value="Student">👨‍🎓 Student</option>
-                <option value="Institute-Admin">👨‍🏫 Teacher</option>
-                <option value="Admin">👨‍💼 Admin</option>
+                <option value="student">👨‍🎓 Student</option>
+                <option value="institute-admin">👨‍🏫 Institute Admin</option>
+                <option value="admin">👨‍💼 Admin</option>
               </select>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800 text-white font-semibold py-3.5 rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-md"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800 disabled:from-indigo-400 disabled:to-blue-400 text-white font-semibold py-3.5 rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-md flex items-center justify-center gap-2"
             >
-              🚀 Create Account
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Creating Account...
+                </>
+              ) : (
+                <>
+                  🚀 Create Account
+                </>
+              )}
             </button>
           </form>
 

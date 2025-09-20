@@ -27,8 +27,7 @@ const VirtualDrillSchema = new mongoose.Schema({
     targets:[{ type: String }],
     instructions:{ type: String, default: "" },
     released:{ type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now }
-
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }
 },
 { timestamps: true });
 

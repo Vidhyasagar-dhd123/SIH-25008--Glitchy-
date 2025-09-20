@@ -1,15 +1,17 @@
 import React from "react";
-import { LayoutDashboard, User, BookOpen, Trophy, ListOrdered, FileText, School, UserPlus, Settings, Building2, PlusSquare, HelpCircle, Hammer, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, User, BookOpen, Trophy, ListOrdered, FileText, School, UserPlus, Settings, Building2, PlusSquare, HelpCircle, Hammer, MessageSquare, GraduationCap, Zap } from 'lucide-react';
 
 const icons = {
   Dashboard: <LayoutDashboard size={20} />,
   "Student Profile": <User size={20} />,
   Module: <BookOpen size={20} />,
+  "Virtual Drill": <Zap size={20} />,
   Scoreboard: <Trophy size={20} />,
   Leaderboard: <ListOrdered size={20} />,
   Posts: <FileText size={20} />,
   Institution: <School size={20} />,
   "Add Admin": <UserPlus size={20} />,
+  "Add Student": <GraduationCap size={20} />, // Added icon for Add Student
   Management: <Settings size={20} />,
   "Add Institute": <Building2 size={20} />,
   "Add Module": <PlusSquare size={20} />,
@@ -28,6 +30,7 @@ export default function Sidebar({ adminAccess, setActive }) {
   const role = localStorage.getItem("role")?.toLowerCase();
   // Prevent duplicate Logout button if already present in adminAccess
   let menuItems = adminAccess;
+  
   // Ensure admin / institute-admin see "Add Lesson" in sidebar (append if not present)
   if (role === "admin" || role === "institute-admin") {
     const hasAddLesson = menuItems.some(item => item?.name === "Add Lesson");
@@ -35,6 +38,15 @@ export default function Sidebar({ adminAccess, setActive }) {
       menuItems = [...menuItems, { name: "Add Lesson" }];
     }
   }
+  
+  // Add "Add Student" functionality for institute admins
+  if (role === "institute-admin") {
+    const hasAddStudent = menuItems.some(item => item?.name === "Add Student");
+    if (!hasAddStudent) {
+      menuItems = [...menuItems, { name: "Add Student" }];
+    }
+  }
+  
   if (role === "student") {
     const hasLogout = adminAccess.some(item => item.name === "Logout");
     if (!hasLogout) {

@@ -92,11 +92,30 @@ const getAllLessons =  async (req, res) => {
   const start = Date.now();
   log.info('getAllLessons called', { query: req.query });
   try {
-    const lessons = await Lesson.find()
+    // Build query object
+    let query = {};
+    
+    // If search parameter is provided, search by lessonId (hyphen-separated name)
+    if (req.query.search) {
+      const searchTerm = req.query.search.trim();
+      // Search by lessonId (exact match or partial match)
+      query.$or = [
+        { lessonId: { $regex: searchTerm, $options: 'i' } },
+        { title: { $regex: searchTerm, $options: 'i' } }
+      ];
+      log.debug('Search query applied', { searchTerm, query });
+    }
+    
+    // If moduleId is provided, filter by module
+    if (req.query.moduleId) {
+      query.module = req.query.moduleId;
+    }
+
+    const lessons = await Lesson.find(query)
       .populate("module", "name description")
       .populate("createdBy", "name email role");
 
-    log.debug('getAllLessons fetched', { count: lessons.length, elapsed: `${Date.now()-start}ms` });
+    log.debug('getAllLessons fetched', { count: lessons.length, searchApplied: !!req.query.search, elapsed: `${Date.now()-start}ms` });
     res.json(lessons);
   } catch (err) {
     log.error('getAllLessons error:', err);
@@ -174,6 +193,110 @@ const deleteLesson = async (req, res) => {
   }
 }
 
-export { fetchLesson, createLesson, getAllLessons, getLessonById, updateLesson, deleteLesson };
+// Get lesson for student with additional context
+const getLessonForStudent = async (req, res) => {
+  const start = Date.now();
+  const { id } = req.params;
+  const userId = req.user?.id;
+  const userRole = req.user?.role;
+  
+  log.info('getLessonForStudent called', { id, userId, userRole });
+  
+  try {
+    // Verify user is a student
+    if (userRole !== 'student') {
+      log.warn('Non-student trying to access student lesson', { userId, userRole });
+      return res.status(403).json({ error: 'Access denied. Student role required.' });
+    }
+
+    const lesson = await Lesson.findById(id)
+      .populate('module', 'title description level')
+      .populate('createdBy', 'name email')
+      .populate('quiz', 'title description');
+
+    if (!lesson) {
+      log.info('getLessonForStudent not found', { id });
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    // Get other lessons in the same module for navigation
+    const siblingLessons = await Lesson.find({ 
+      module: lesson.module._id,
+      _id: { $ne: id }
+    })
+      .select('title lessonId createdAt')
+      .sort({ createdAt: 1 });
+
+    const lessonWithContext = {
+      ...lesson.toObject(),
+      siblingLessons: siblingLessons,
+      moduleInfo: {
+        totalLessons: siblingLessons.length + 1,
+        moduleId: lesson.module._id
+      }
+    };
+
+    log.debug('getLessonForStudent success', { id, elapsed: `${Date.now()-start}ms` });
+    res.json({
+      success: true,
+      message: 'Lesson fetched successfully',
+      data: lessonWithContext
+    });
+  } catch (err) {
+    if (err.kind === 'ObjectId') {
+      log.warn('Invalid ObjectId in getLessonForStudent', { id, error: err.message });
+      return res.status(400).json({ error: 'Invalid lesson ID' });
+    }
+    log.error('getLessonForStudent error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const searchLessonsByHyphenName = async (req, res) => {
+  const start = Date.now();
+  const { searchTerm } = req.query;
+  log.info('searchLessonsByHyphenName called', { searchTerm });
+  
+  try {
+    if (!searchTerm) {
+      return res.status(400).json({ error: 'Search term is required' });
+    }
+
+    // Convert search term to hyphen-separated format if it isn't already
+    const hyphenatedTerm = searchTerm.toLowerCase()
+      .replace(/\s+/g, '-')  // Replace spaces with hyphens
+      .replace(/[^a-z0-9-]/g, ''); // Remove special characters except hyphens
+
+    // Search for lessons by lessonId pattern
+    const query = {
+      lessonId: { $regex: hyphenatedTerm, $options: 'i' }
+    };
+
+    const lessons = await Lesson.find(query)
+      .populate("module", "name description")
+      .populate("createdBy", "name email role")
+      .sort({ createdAt: -1 });
+
+    log.debug('searchLessonsByHyphenName success', { 
+      searchTerm, 
+      hyphenatedTerm, 
+      resultCount: lessons.length, 
+      elapsed: `${Date.now()-start}ms` 
+    });
+
+    res.json({
+      success: true,
+      message: `Found ${lessons.length} lessons matching "${searchTerm}"`,
+      data: lessons,
+      searchTerm: hyphenatedTerm
+    });
+
+  } catch (err) {
+    log.error('searchLessonsByHyphenName error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export { fetchLesson, createLesson, getAllLessons, getLessonById, updateLesson, deleteLesson, getLessonForStudent, searchLessonsByHyphenName };
 
 

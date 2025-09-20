@@ -18,6 +18,8 @@ import TeacherProfile from "./TeacherProfile";
 import AdminAddLesson from "./AdminAddLesson";
 import AdminAddDrill from "./AdminAddDrill";
 import ModulesRead from "./ModulesRead";
+import AddStudent from "./AddStudent";
+import VirtualDrillHub from "./VirtualDrillHub";
 
 const Content = memo(({ activePage }) => {
   const [userRole, setUserRole] = useState(null);
@@ -92,6 +94,11 @@ const Content = memo(({ activePage }) => {
     switch (activePage) {
       case "Module":
         return <ModulesRead />;
+      case "Virtual Drill":
+        if (userRole === "student") {
+          return <VirtualDrillHub />;
+        }
+        return <div className={cardClass}><h2 className="text-2xl font-bold mb-2 text-purple-600">Virtual Drill</h2><p className="text-gray-700">Access is restricted to students only.</p></div>;
       case "Scoreboard":
         return <div className={cardClass}><h2 className="text-2xl font-bold mb-2 text-green-600">Scoreboard</h2><p className="text-gray-700">Track your progress and scores here.</p></div>;
       case "Leaderboard":
@@ -124,6 +131,11 @@ const Content = memo(({ activePage }) => {
         return <div className={cardClass}><h2 className="text-2xl font-bold mb-2 text-red-600">Quiz Management</h2><p className="text-gray-700">Manage quizzes and assessments.</p></div>;
       case "Add Drill":
         return <AdminAddDrill/>
+      case "Add Student":
+        if (userRole === "institute-admin") {
+          return <AddStudent />;
+        }
+        return <div className={cardClass}><h2 className="text-2xl font-bold mb-2 text-blue-500">Add Student</h2><p className="text-gray-700">You do not have permission to add students.</p></div>;
       case "Message":
         if (userRole === "admin") {
           return <AdminMessages />;
