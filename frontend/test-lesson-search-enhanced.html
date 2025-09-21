@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Enhanced Lesson Search with Hyphen Names</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .loading { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; }
+        .primary { background: #007bff; color: white; }
+        .secondary { background: #6c757d; color: white; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; border-radius: 4px; font-size: 12px; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; width: 200px; }
+        .lesson-card { border: 1px solid #ddd; padding: 10px; margin: 5px; border-radius: 4px; background: #f9f9f9; }
+        .lesson-id { background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <h1>🚀 Enhanced Lesson Search Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Test Backend Lesson Search API</h3>
+        <p>Test searching lessons by hyphen-separated names</p>
+        <input type="text" id="searchInput" placeholder="e.g., floods-introduction" value="floods-introduction">
+        <button class="primary" onclick="testLessonSearch()">Search Lessons</button>
+        <button class="secondary" onclick="clearResults()">Clear</button>
+        <div id="searchResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test Data Structure Handling</h3>
+        <p>Test how the frontend handles the nested lesson data structure</p>
+        <button class="primary" onclick="testDataStructure()">Test Data Structure</button>
+        <div id="dataStructureResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Common Search Terms</h3>
+        <p>Quick test buttons for common lesson search patterns</p>
+        <button onclick="quickSearch('fire-safety')">fire-safety</button>
+        <button onclick="quickSearch('earthquake-preparedness')">earthquake-preparedness</button>
+        <button onclick="quickSearch('floods-introduction')">floods-introduction</button>
+        <button onclick="quickSearch('emergency-evacuation')">emergency-evacuation</button>
+        <button onclick="quickSearch('first-aid-basics')">first-aid-basics</button>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Module Lessons Enhancement Test</h3>
+        <p>Test fetching and enhancing module lessons</p>
+        <input type="text" id="moduleIdInput" placeholder="Module ID" value="">
+        <button class="primary" onclick="testModuleLessons()">Get Module Lessons</button>
+        <div id="moduleResults"></div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:3000/api';
+
+        function showResult(elementId, status, data, title = '') {
+            const element = document.getElementById(elementId);
+            element.className = `test-section ${status}`;
+            element.innerHTML = `
+                ${title ? `<h4>${title}</h4>` : ''}
+                <p>Status: ${status.toUpperCase()}</p>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        }
+
+        function showLoading(elementId, message = 'Loading...') {
+            const element = document.getElementById(elementId);
+            element.className = 'test-section loading';
+            element.innerHTML = `<p>${message}</p>`;
+        }
+
+        function clearResults() {
+            document.getElementById('searchResults').innerHTML = '';
+            document.getElementById('dataStructureResults').innerHTML = '';
+            document.getElementById('moduleResults').innerHTML = '';
+        }
+
+        async function testLessonSearch() {
+            const searchTerm = document.getElementById('searchInput').value;
+            if (!searchTerm) {
+                alert('Please enter a search term');
+                return;
+            }
+
+            showLoading('searchResults', `Searching for "${searchTerm}"...`);
+            try {
+                const response = await fetch(`${BASE_URL}/lessons/search?searchTerm=${encodeURIComponent(searchTerm)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const lessons = data.data || [];
+                    let resultHtml = `
+                        <h4>✅ Search Results for "${searchTerm}"</h4>
+                        <p>Found ${lessons.length} lesson(s) | Searched for: "${data.searchTerm}"</p>
+                    `;
+                    
+                    if (lessons.length > 0) {
+                        resultHtml += '<div>';
+                        lessons.forEach((lesson, index) => {
+                            resultHtml += `
+                                <div class="lesson-card">
+                                    <strong>${index + 1}. ${lesson.title}</strong>
+                                    <br><span class="lesson-id">${lesson.lessonId}</span>
+                                    <br><small>Module: ${lesson.module?.name || 'N/A'}</small>
+                                    <br><small>Created: ${new Date(lesson.createdAt).toLocaleDateString()}</small>
+                                    ${lesson.description ? `<br><em>${lesson.description}</em>` : ''}
+                                </div>
+                            `;
+                        });
+                        resultHtml += '</div>';
+                    }
+                    
+                    document.getElementById('searchResults').innerHTML = resultHtml;
+                    document.getElementById('searchResults').className = 'test-section success';
+                } else {
+                    showResult('searchResults', 'error', data, '❌ Search Failed');
+                }
+            } catch (error) {
+                showResult('searchResults', 'error', { error: error.message }, '💥 Request Failed');
+            }
+        }
+
+        function quickSearch(term) {
+            document.getElementById('searchInput').value = term;
+            testLessonSearch();
+        }
+
+        async function testDataStructure() {
+            showLoading('dataStructureResults', 'Testing data structure handling...');
+            
+            // Simulate the nested data structure from your example
+            const mockNestedData = {
+                success: true,
+                message: "Lesson fetched successfully",
+                data: {
+                    _id: "68ccbe1af76a44dcaa990ee1",
+                    title: "Introduction",
+                    content: "This lesson provides information about Floods",
+                    lessonId: "floods-introduction",
+                    createdAt: "2025-09-19T02:21:14.682Z",
+                    createdBy: {
+                        _id: '68ccbbce64702b7ba5cb9083',
+                        email: 'admin@gmail.com',
+                        role: 'admin'
+                    },
+                    module: {
+                        _id: '68ccbde4083ee89d09b09ff1',
+                        title: 'Floods',
+                        description: 'Module giving information about floods',
+                        level: 'intermediate'
+                    },
+                    moduleInfo: {
+                        totalLessons: 1,
+                        moduleId: '68ccbde4083ee89d09b09ff1'
+                    },
+                    siblingLessons: []
+                }
+            };
+
+            // Test the data extraction logic
+            const actualLessonData = mockNestedData.data || mockNestedData;
+            
+            const extractedData = {
+                _id: actualLessonData._id,
+                title: actualLessonData.title,
+                description: actualLessonData.description,
+                content: actualLessonData.content,
+                lessonId: actualLessonData.lessonId,
+                createdBy: actualLessonData.createdBy,
+                module: actualLessonData.module,
+                moduleInfo: actualLessonData.moduleInfo
+            };
+
+            let resultHtml = `
+                <h4>✅ Data Structure Test</h4>
+                <h5>Original Nested Structure:</h5>
+                <pre>${JSON.stringify(mockNestedData, null, 2)}</pre>
+                <h5>Extracted Lesson Data:</h5>
+                <pre>${JSON.stringify(extractedData, null, 2)}</pre>
+                <p>✅ Successfully extracted lesson data from nested structure!</p>
+            `;
+            
+            document.getElementById('dataStructureResults').innerHTML = resultHtml;
+            document.getElementById('dataStructureResults').className = 'test-section success';
+        }
+
+        async function testModuleLessons() {
+            const moduleId = document.getElementById('moduleIdInput').value;
+            if (!moduleId) {
+                alert('Please enter a module ID');
+                return;
+            }
+
+            showLoading('moduleResults', `Fetching lessons for module ${moduleId}...`);
+            try {
+                const response = await fetch(`${BASE_URL}/lessons?moduleId=${moduleId}`);
+                const data = await response.json();
+                
+                if (response.ok && Array.isArray(data)) {
+                    let resultHtml = `
+                        <h4>✅ Module Lessons</h4>
+                        <p>Found ${data.length} lesson(s) in module</p>
+                    `;
+                    
+                    if (data.length > 0) {
+                        resultHtml += '<div>';
+                        data.forEach((lesson, index) => {
+                            resultHtml += `
+                                <div class="lesson-card">
+                                    <strong>${index + 1}. ${lesson.title}</strong>
+                                    <br><span class="lesson-id">${lesson.lessonId}</span>
+                                    <br><small>Module: ${lesson.module?.name || lesson.module?.title || 'N/A'}</small>
+                                    ${lesson.content ? '<br><small>✓ Has content</small>' : '<br><small>⚠ No content</small>'}
+                                </div>
+                            `;
+                        });
+                        resultHtml += '</div>';
+                    }
+                    
+                    document.getElementById('moduleResults').innerHTML = resultHtml;
+                    document.getElementById('moduleResults').className = 'test-section success';
+                } else {
+                    showResult('moduleResults', 'error', data, '❌ Failed to fetch module lessons');
+                }
+            } catch (error) {
+                showResult('moduleResults', 'error', { error: error.message }, '💥 Request Failed');
+            }
+        }
+
+        // Auto-run basic test on page load
+        window.onload = function() {
+            console.log('🚀 Lesson Search Test Page Loaded');
+            console.log('Make sure your backend is running on localhost:3000');
+        };
+    </script>
+</body>
+</html>

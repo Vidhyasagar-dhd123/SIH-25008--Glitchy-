@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Trophy, ListOrdered, User, FileText, LogOut, School, LayoutDashboard, UserPlus, Settings, Smartphone, Building2, PlusSquare, HelpCircle, Target, MessageSquare, Users,} from 'lucide-react';
+import { BookOpen, Trophy, ListOrdered, User, FileText, LogOut, School, LayoutDashboard, UserPlus, Settings, Smartphone, Building2, PlusSquare, HelpCircle, Target, MessageSquare, Users, Zap} from 'lucide-react';
 
 const studentAccess = [
   { name: "Module", icon: <BookOpen size={18} /> },
+  { name: "Virtual Drill", icon: <Zap size={18} /> },
   { name: "Scoreboard", icon: <Trophy size={18} /> },
   { name: "Leaderboard", icon: <ListOrdered size={18} /> },
   { name: "Student Profile", icon: <User size={18} /> },

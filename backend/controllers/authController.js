@@ -97,41 +97,81 @@ const signupUser = async (req, res) => {
   try {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
-    if (existingUser && existingUser.password) {
-      log.info("signupUser - user already exists", { email });
-      return res.status(400).json({ message: "User already exists" });
+    
+    let user;
+    let isNewUser = false;
+    
+    if (existingUser) {
+      // User exists, check if password is available
+      if (!existingUser.password) {
+        // User exists but no password, create one
+        log.info("signupUser - user exists without password, creating password", { email });
+        
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Update existing user with password
+        existingUser.password = hashedPassword;
+        existingUser.name = name || existingUser.name; // Update name if provided
+        existingUser.role = userRole; // Update role
+        
+        user = await existingUser.save();
+        log.info("signupUser - password created for existing user", { userId: user._id });
+      } else {
+        // User exists with password, update it
+        log.info("signupUser - user exists with password, updating password", { email });
+        
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Update existing user
+        existingUser.password = hashedPassword;
+        existingUser.name = name || existingUser.name; // Update name if provided
+        existingUser.role = userRole; // Update role
+        
+        user = await existingUser.save();
+        log.info("signupUser - user updated successfully", { userId: user._id });
+      }
+    } else {
+      // Create new user
+      log.info("signupUser - creating new user", { email });
+      isNewUser = true;
+      
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      user = new User({
+        email,
+        password: hashedPassword,
+        name: name || "",
+        role: userRole,
+      });
+
+      await user.save();
+      log.info("signupUser - new user created successfully", { userId: user._id });
     }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create new user
-    const newUser = new User({
-      email,
-      password: hashedPassword,
-      name: name || "",
-      role: userRole,
-    });
-
-    await newUser.save();
 
     // Generate JWT token
     const token = jwt.sign(
       {
-        id: newUser._id,
-        role: newUser.role,
-        username: newUser.name,
-        name: newUser.name,
-        email: newUser.email,
+        id: user._id,
+        role: user.role,
+        username: user.name,
+        name: user.name,
+        email: user.email,
       },
       process.env.JWT_SECRET || "default_secret",
       { expiresIn: "1h" }
     );
 
-    log.info("signupUser success", { userId: newUser._id, role: newUser.role });
+    const message = isNewUser 
+      ? "User created and logged in successfully" 
+      : "User account updated and logged in successfully";
+
+    log.info("signupUser success", { userId: user._id, role: user.role, isNewUser });
     res
-      .status(201)
-      .json({ message: "User created and logged in successfully", token, role });
+      .status(isNewUser ? 201 : 200)
+      .json({ message, token, role: user.role });
   } catch (error) {
     log.error("signupUser error:", error);
     res.status(500).json({ message: error.message });
