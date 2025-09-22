@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, BookOpen, Clock, User, ArrowLeft, CheckCircle, Play } from "lucide-react";
+import { ChevronDown, ChevronUp, BookOpen, Clock, User, ArrowLeft, CheckCircle, Play, Target, Trophy } from "lucide-react";
 
 const ModulesRead = () => {
     const [modules, setModules] = useState([]);
@@ -20,6 +20,14 @@ const ModulesRead = () => {
     const [lessonSearchResults, setLessonSearchResults] = useState([]);
     const [lessonSearchLoading, setLessonSearchLoading] = useState(false);
     
+    // Quiz attempt states
+    const [showQuizModal, setShowQuizModal] = useState(false);
+    const [currentQuiz, setCurrentQuiz] = useState(null);
+    const [currentAttempt, setCurrentAttempt] = useState(null);
+    const [quizAnswers, setQuizAnswers] = useState({});
+    const [submittingQuiz, setSubmittingQuiz] = useState(false);
+    const [quizResults, setQuizResults] = useState(null);
+    
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -31,6 +39,202 @@ const ModulesRead = () => {
             setLessonSearchResults([]);
         }
     }, [searchTerm, selectedLevel, searchMode]);
+
+    const fetchLessonQuizzes = async (lessonId) => {
+        try {
+            console.log('Fetching quizzes for lessonId:', lessonId);
+            
+            const token = localStorage.getItem('token');
+            const headers = {
+                "Content-Type": "application/json",
+            };
+            
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+
+            const response = await fetch(`http://localhost:3000/api/quiz/lesson/${lessonId}`, {
+                method: "GET",
+                headers,
+                mode: "cors",
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Quiz fetch response for lesson', lessonId, ':', result);
+                const quizzes = result.data || [];
+                console.log(`Found ${quizzes.length} quizzes for lesson ${lessonId}`);
+                return quizzes;
+            } else {
+                const errorData = await response.json();
+                console.warn(`Failed to fetch quizzes for lesson ${lessonId}:`, errorData);
+                return [];
+            }
+        } catch (error) {
+            console.warn(`Error fetching quizzes for lesson ${lessonId}:`, error);
+            return [];
+        }
+    };
+
+    // Test function to create a mock quiz for debugging
+    const testQuizModal = () => {
+        const mockQuiz = {
+            _id: "test-quiz-id",
+            title: "Test Fire Safety Quiz",
+            description: "A test quiz to verify modal functionality",
+            questions: [
+                {
+                    _id: "q1",
+                    text: "What is the first thing to do in case of fire?",
+                    options: ["Run away", "Call emergency services", "Try to put it out"],
+                    correctOption: 1,
+                    points: 1
+                },
+                {
+                    _id: "q2", 
+                    text: "What should you do if your clothes catch fire?",
+                    options: ["Run", "Stop, Drop, and Roll", "Jump in water"],
+                    correctOption: 1,
+                    points: 1
+                }
+            ]
+        };
+
+        const mockAttempt = {
+            attemptId: "test-attempt-id",
+            totalPoints: 2
+        };
+
+        setCurrentQuiz(mockQuiz);
+        setCurrentAttempt(mockAttempt);
+        setQuizAnswers({});
+        setQuizResults(null);
+        setShowQuizModal(true);
+        setError("");
+    };
+
+    const startQuizAttempt = async (quiz) => {
+        try {
+            console.log('Starting quiz attempt with quiz data:', quiz);
+            
+            const token = localStorage.getItem('token');
+            const userRole = localStorage.getItem('role');
+            
+            if (!token) {
+                setError("Please log in to take quizzes");
+                return;
+            }
+
+            if (userRole !== 'student') {
+                setError("Only students can take quizzes");
+                return;
+            }
+
+            // Use quiz._id or quizId depending on the structure
+            const quizId = quiz._id || quiz.quizId;
+            console.log('Using quiz ID:', quizId);
+
+            if (!quizId) {
+                setError("Quiz ID not found");
+                console.error('Quiz object missing ID:', quiz);
+                return;
+            }
+
+            const response = await fetch(`http://localhost:3000/api/attempts/start/${quizId}`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            const result = await response.json();
+            console.log('Start quiz attempt response:', result);
+
+            if (response.ok && result.success) {
+                setCurrentQuiz(result.data.quiz);
+                setCurrentAttempt(result.data);
+                setQuizAnswers({});
+                setQuizResults(null);
+                setShowQuizModal(true);
+                setError(""); // Clear any previous errors
+            } else {
+                setError(result.message || "Failed to start quiz attempt");
+                console.error('Failed to start quiz attempt:', result);
+            }
+        } catch (error) {
+            console.error("Error starting quiz attempt:", error);
+            setError("Error starting quiz attempt: " + error.message);
+        }
+    };
+
+    const handleAnswerChange = (questionId, selectedOption) => {
+        setQuizAnswers(prev => ({
+            ...prev,
+            [questionId]: selectedOption
+        }));
+    };
+
+    const submitQuizAttempt = async () => {
+        if (!currentAttempt || !currentQuiz) return;
+
+        // Check if all questions are answered
+        const unansweredQuestions = currentQuiz.questions.filter(q => 
+            quizAnswers[q._id] === undefined || quizAnswers[q._id] === null
+        );
+
+        if (unansweredQuestions.length > 0) {
+            setError(`Please answer all questions. ${unansweredQuestions.length} questions remaining.`);
+            return;
+        }
+
+        setSubmittingQuiz(true);
+        setError("");
+
+        try {
+            const token = localStorage.getItem('token');
+            
+            // Format answers for submission
+            const formattedAnswers = currentQuiz.questions.map(question => ({
+                questionId: question._id,
+                selectedOption: quizAnswers[question._id]
+            }));
+
+            const response = await fetch(`http://localhost:3000/api/attempts/submit/${currentAttempt.attemptId}`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    answers: formattedAnswers
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                setQuizResults(result.data);
+            } else {
+                setError(result.message || "Failed to submit quiz");
+            }
+        } catch (error) {
+            console.error("Error submitting quiz:", error);
+            setError("Error submitting quiz");
+        } finally {
+            setSubmittingQuiz(false);
+        }
+    };
+
+    const closeQuizModal = () => {
+        setShowQuizModal(false);
+        setCurrentQuiz(null);
+        setCurrentAttempt(null);
+        setQuizAnswers({});
+        setQuizResults(null);
+        setSubmittingQuiz(false);
+        setError("");
+    };
 
     const searchLessons = async () => {
         try {
@@ -67,7 +271,20 @@ const ModulesRead = () => {
             }
             
             console.log("Lesson search results:", json);
-            setLessonSearchResults(json.data || []);
+            const searchResults = json.data || [];
+            
+            // Enhance search results with quizzes
+            const enhancedSearchResults = await Promise.all(
+                searchResults.map(async (lesson) => {
+                    const quizzes = await fetchLessonQuizzes(lesson._id);
+                    return {
+                        ...lesson,
+                        quizzes: quizzes
+                    };
+                })
+            );
+            
+            setLessonSearchResults(enhancedSearchResults);
             
         } catch (err) {
             console.error("Error searching lessons:", err);
@@ -189,41 +406,50 @@ const ModulesRead = () => {
                             mode: "cors",
                         });
                         
+                        let actualLessonData = lesson; // fallback to basic lesson data
+                        
                         if (lessonResponse.ok) {
                             const lessonDetail = await lessonResponse.json();
                             console.log("Raw lesson detail response:", lessonDetail);
                             
                             // Handle nested data structure - extract from data property if it exists
-                            const actualLessonData = lessonDetail.data || lessonDetail;
+                            actualLessonData = lessonDetail.data || lessonDetail;
                             console.log("Processed lesson data:", actualLessonData);
-                            
-                            // Merge basic lesson data with detailed data
-                            return {
-                                _id: lesson._id || actualLessonData._id,
-                                title: actualLessonData.title || lesson.title,
-                                description: actualLessonData.description || lesson.description,
-                                content: actualLessonData.content,
-                                duration: actualLessonData.duration || lesson.duration,
-                                level: actualLessonData.level || lesson.level,
-                                lessonId: actualLessonData.lessonId || lesson.lessonId,
-                                quiz: actualLessonData.quiz,
-                                createdBy: actualLessonData.createdBy,
-                                module: actualLessonData.module,
-                                completed: actualLessonData.completed || lesson.completed,
-                                createdAt: actualLessonData.createdAt || lesson.createdAt,
-                                updatedAt: actualLessonData.updatedAt || lesson.updatedAt,
-                                // Include any additional fields from the response
-                                siblingLessons: actualLessonData.siblingLessons,
-                                moduleInfo: actualLessonData.moduleInfo
-                            };
                         } else {
-                            // If detailed fetch fails, return basic lesson data
                             console.warn(`Failed to fetch details for lesson ${lesson._id}`);
-                            return lesson;
                         }
+                        
+                        // Fetch quizzes for this lesson
+                        const quizzes = await fetchLessonQuizzes(lesson._id);
+                        
+                        // Merge basic lesson data with detailed data and quizzes
+                        return {
+                            _id: lesson._id || actualLessonData._id,
+                            title: actualLessonData.title || lesson.title,
+                            description: actualLessonData.description || lesson.description,
+                            content: actualLessonData.content,
+                            duration: actualLessonData.duration || lesson.duration,
+                            level: actualLessonData.level || lesson.level,
+                            lessonId: actualLessonData.lessonId || lesson.lessonId,
+                            quiz: actualLessonData.quiz,
+                            quizzes: quizzes, // Add related quizzes
+                            createdBy: actualLessonData.createdBy,
+                            module: actualLessonData.module,
+                            completed: actualLessonData.completed || lesson.completed,
+                            createdAt: actualLessonData.createdAt || lesson.createdAt,
+                            updatedAt: actualLessonData.updatedAt || lesson.updatedAt,
+                            // Include any additional fields from the response
+                            siblingLessons: actualLessonData.siblingLessons,
+                            moduleInfo: actualLessonData.moduleInfo
+                        };
                     } catch (error) {
                         console.warn(`Error fetching details for lesson ${lesson._id}:`, error);
-                        return lesson;
+                        // Still try to fetch quizzes even if lesson details fail
+                        const quizzes = await fetchLessonQuizzes(lesson._id);
+                        return {
+                            ...lesson,
+                            quizzes: quizzes
+                        };
                     }
                 })
             );
@@ -278,6 +504,8 @@ const ModulesRead = () => {
                 ? `http://localhost:3000/api/lessons/student/${lessonId}`
                 : `http://localhost:3000/api/lessons/${lessonId}`;
 
+            console.log('Fetching lesson content from:', apiUrl);
+
             const response = await fetch(apiUrl, {
                 method: "GET",
                 headers: {
@@ -288,9 +516,40 @@ const ModulesRead = () => {
 
             if (response.ok) {
                 const lessonData = await response.json();
+                console.log('Raw lesson data response:', lessonData);
+                
                 // Handle nested data structure - extract from data property if it exists
                 const actualLessonData = lessonData.data || lessonData;
-                setCurrentLesson(actualLessonData);
+                console.log('Processed lesson data:', actualLessonData);
+                
+                // Fetch quizzes for this lesson using both lesson._id and lessonId
+                console.log('Fetching quizzes for lesson ID:', actualLessonData._id, 'and lessonId:', actualLessonData.lessonId);
+                
+                // Try fetching quizzes using both possible identifiers
+                let quizzes = [];
+                if (actualLessonData._id) {
+                    console.log('Fetching quizzes by lesson._id:', actualLessonData._id);
+                    const quizzesByObjectId = await fetchLessonQuizzes(actualLessonData._id);
+                    quizzes = quizzes.concat(quizzesByObjectId);
+                }
+                
+                if (actualLessonData.lessonId && actualLessonData.lessonId !== actualLessonData._id) {
+                    console.log('Fetching quizzes by lessonId:', actualLessonData.lessonId);
+                    const quizzesByLessonId = await fetchLessonQuizzes(actualLessonData.lessonId);
+                    quizzes = quizzes.concat(quizzesByLessonId);
+                }
+                
+                // Remove duplicates if any
+                const uniqueQuizzes = quizzes.filter((quiz, index, self) => 
+                    index === self.findIndex(q => q._id === quiz._id)
+                );
+                
+                console.log('Final quizzes found:', uniqueQuizzes);
+                
+                setCurrentLesson({
+                    ...actualLessonData,
+                    quizzes: uniqueQuizzes
+                });
             } else {
                 const errorData = await response.json();
                 setError(errorData.message || "Failed to fetch lesson content");
@@ -439,6 +698,99 @@ const ModulesRead = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* Debug Info */}
+                    {process.env.NODE_ENV === 'development' && error && (
+                        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-6">
+                            <p><strong>Debug Info:</strong></p>
+                            <p>Error: {error}</p>
+                            <p>User Role: {localStorage.getItem('role')}</p>
+                            <p>Token Exists: {!!localStorage.getItem('token')}</p>
+                            {currentLesson && (
+                                <>
+                                    <p>Lesson ID: {currentLesson._id}</p>
+                                    <p>Lesson lessonId: {currentLesson.lessonId}</p>
+                                    <p>Quizzes Found: {currentLesson.quizzes?.length || 0}</p>
+                                    {currentLesson.quizzes?.map((quiz, idx) => (
+                                        <p key={idx}>Quiz {idx + 1}: {quiz.title} (ID: {quiz._id}, QuizID: {quiz.quizId})</p>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Related Quizzes */}
+                    {currentLesson.quizzes && currentLesson.quizzes.length > 0 && (
+                        <div className="border-t border-gray-200 p-6">
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                <Target className="text-indigo-600" size={20} />
+                                Related Quizzes ({currentLesson.quizzes.length})
+                            </h3>
+                            <div className="grid gap-4">
+                                {currentLesson.quizzes.map((quiz) => (
+                                    <div
+                                        key={quiz._id}
+                                        className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4 hover:shadow-md transition-all"
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-indigo-900 mb-2">
+                                                    {quiz.title}
+                                                </h4>
+                                                {quiz.description && (
+                                                    <p className="text-sm text-indigo-700 mb-3">
+                                                        {quiz.description}
+                                                    </p>
+                                                )}
+                                                <div className="flex flex-wrap items-center gap-4 text-sm text-indigo-600">
+                                                    <div className="flex items-center gap-1">
+                                                        <Target className="w-4 h-4" />
+                                                        <span>{quiz.questions?.length || 0} questions</span>
+                                                    </div>
+                                                    {quiz.createdBy?.name && (
+                                                        <div className="flex items-center gap-1">
+                                                            <User className="w-4 h-4" />
+                                                            <span>Created by {quiz.createdBy.name}</span>
+                                                        </div>
+                                                    )}
+                                                    {quiz.createdAt && (
+                                                        <div className="flex items-center gap-1">
+                                                            <Clock className="w-4 h-4" />
+                                                            <span>{new Date(quiz.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="ml-4 flex flex-col gap-2">
+                                                <button 
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-medium"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        console.log('=== TAKE QUIZ BUTTON CLICKED ===');
+                                                        console.log('Quiz object received:', quiz);
+                                                        console.log('Quiz ID field:', quiz._id);
+                                                        console.log('Quiz quizId field:', quiz.quizId);
+                                                        console.log('Quiz title:', quiz.title);
+                                                        console.log('Quiz questions:', quiz.questions);
+                                                        console.log('User role:', localStorage.getItem('role'));
+                                                        console.log('User token exists:', !!localStorage.getItem('token'));
+                                                        console.log('=== STARTING QUIZ ATTEMPT ===');
+                                                        startQuizAttempt(quiz);
+                                                    }}
+                                                >
+                                                    <Trophy size={16} />
+                                                    Take Quiz
+                                                </button>
+                                                <div className="text-xs text-center text-indigo-600">
+                                                    ID: {quiz.quizId || quiz._id}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -572,7 +924,43 @@ const ModulesRead = () => {
                                                             <span>By {lesson.createdBy.name}</span>
                                                         </div>
                                                     )}
+                                                    
+                                                    {lesson.quizzes && lesson.quizzes.length > 0 && (
+                                                        <div className="flex items-center gap-1 text-indigo-600">
+                                                            <Target className="w-3 h-3" />
+                                                            <span>{lesson.quizzes.length} Quiz{lesson.quizzes.length > 1 ? 'es' : ''}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                
+                                                {/* Related Quizzes for Search Results */}
+                                                {lesson.quizzes && lesson.quizzes.length > 0 && (
+                                                    <div className="mt-3 space-y-1">
+                                                        <div className="text-xs font-medium text-gray-700 mb-1">
+                                                            Available Quizzes:
+                                                        </div>
+                                                        {lesson.quizzes.slice(0, 2).map((quiz) => (
+                                                            <div key={quiz._id} className="bg-indigo-50 border border-indigo-200 rounded p-2">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div>
+                                                                        <div className="text-xs font-medium text-indigo-800">
+                                                                            {quiz.title}
+                                                                        </div>
+                                                                        <div className="text-xs text-indigo-600">
+                                                                            {quiz.questions?.length || 0} questions
+                                                                        </div>
+                                                                    </div>
+                                                                    <Trophy className="w-3 h-3 text-indigo-600" />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {lesson.quizzes.length > 2 && (
+                                                            <div className="text-xs text-gray-500 text-center">
+                                                                +{lesson.quizzes.length - 2} more quiz{lesson.quizzes.length - 2 > 1 ? 'es' : ''}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                             
                                             <button className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors group-hover:bg-blue-600 group-hover:text-white">
@@ -743,6 +1131,13 @@ const ModulesRead = () => {
                                                                     </div>
                                                                 )}
                                                                 
+                                                                {lesson.quizzes && lesson.quizzes.length > 0 && (
+                                                                    <div className="flex items-center gap-1 text-indigo-600">
+                                                                        <Target className="w-3 h-3" />
+                                                                        <span>{lesson.quizzes.length} Quiz{lesson.quizzes.length > 1 ? 'es' : ''}</span>
+                                                                    </div>
+                                                                )}
+                                                                
                                                                 {lesson.completed && (
                                                                     <div className="flex items-center gap-1 text-green-600">
                                                                         <CheckCircle className="w-3 h-3" />
@@ -764,6 +1159,51 @@ const ModulesRead = () => {
                                                                     <span className="bg-gray-200 px-2 py-1 rounded-full">
                                                                         Content Available
                                                                     </span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* Related Quizzes */}
+                                                            {lesson.quizzes && lesson.quizzes.length > 0 && (
+                                                                <div className="mt-3 space-y-1">
+                                                                    <div className="text-xs font-medium text-gray-700 mb-1">
+                                                                        Related Quizzes:
+                                                                    </div>
+                                                                    {lesson.quizzes.map((quiz, qIndex) => (
+                                                                        <div key={quiz._id} className="bg-indigo-50 border border-indigo-200 rounded p-2">
+                                                                            <div className="flex items-start justify-between">
+                                                                                <div className="flex-1">
+                                                                                    <div className="text-xs font-medium text-indigo-800">
+                                                                                        {quiz.title}
+                                                                                    </div>
+                                                                                    {quiz.description && (
+                                                                                        <div className="text-xs text-indigo-600 mt-1 line-clamp-1">
+                                                                                            {quiz.description}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <div className="flex items-center gap-2 mt-1 text-xs text-indigo-500">
+                                                                                        <Target className="w-3 h-3" />
+                                                                                        <span>{quiz.questions?.length || 0} questions</span>
+                                                                                        {quiz.createdBy?.name && (
+                                                                                            <>
+                                                                                                <span>•</span>
+                                                                                                <span>By {quiz.createdBy.name}</span>
+                                                                                            </>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <button 
+                                                                                    className="ml-2 px-2 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 transition-colors"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        // Handle quiz navigation here
+                                                                                        console.log('Opening quiz:', quiz._id);
+                                                                                    }}
+                                                                                >
+                                                                                    <Trophy className="w-3 h-3" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -811,6 +1251,132 @@ const ModulesRead = () => {
                         )}
                     </div>
                 )}
+                </div>
+            )}
+
+            {/* Quiz Modal */}
+            {showQuizModal && currentQuiz && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                        {/* Quiz Header */}
+                        <div className="sticky top-0 bg-white border-b border-gray-200 p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-900">{currentQuiz.title}</h2>
+                                    {currentQuiz.description && (
+                                        <p className="text-gray-600 mt-1">{currentQuiz.description}</p>
+                                    )}
+                                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                                        <span>{currentQuiz.questions?.length || 0} questions</span>
+                                        <span>Total Points: {currentAttempt?.totalPoints || 0}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={closeQuizModal}
+                                    className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Quiz Results */}
+                        {quizResults ? (
+                            <div className="p-6">
+                                <div className="text-center mb-6">
+                                    <div className="bg-green-100 border border-green-200 rounded-lg p-6">
+                                        <Trophy className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                                        <h3 className="text-2xl font-bold text-green-800 mb-2">Quiz Completed!</h3>
+                                        <div className="text-lg text-green-700">
+                                            Score: {quizResults.score}/{quizResults.totalPoints} ({quizResults.percentage}%)
+                                        </div>
+                                        <div className="text-sm text-green-600 mt-2">
+                                            Correct Answers: {quizResults.correctAnswers}/{quizResults.totalQuestions}
+                                        </div>
+                                        {quizResults.duration && (
+                                            <div className="text-sm text-green-600">
+                                                Time Taken: {Math.floor(quizResults.duration / 60)}:{(quizResults.duration % 60).toString().padStart(2, '0')}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex justify-center">
+                                    <button
+                                        onClick={closeQuizModal}
+                                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            /* Quiz Questions */
+                            <div className="p-6">
+                                {currentQuiz.questions.map((question, index) => (
+                                    <div key={question._id} className="mb-8 p-4 border border-gray-200 rounded-lg">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                            {index + 1}. {question.text}
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {question.options.map((option, optionIndex) => (
+                                                <label
+                                                    key={optionIndex}
+                                                    className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name={`question-${question._id}`}
+                                                        value={optionIndex}
+                                                        checked={quizAnswers[question._id] === optionIndex}
+                                                        onChange={() => handleAnswerChange(question._id, optionIndex)}
+                                                        className="w-4 h-4 text-blue-600"
+                                                    />
+                                                    <span className="text-gray-700">{option}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        <div className="mt-2 text-xs text-gray-500">
+                                            Points: {question.points || 1}
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Submit Button */}
+                                <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 mt-6">
+                                    <div className="flex justify-between items-center">
+                                        <div className="text-sm text-gray-600">
+                                            Answered: {Object.keys(quizAnswers).length}/{currentQuiz.questions?.length || 0} questions
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={closeQuizModal}
+                                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={submitQuizAttempt}
+                                                disabled={submittingQuiz || Object.keys(quizAnswers).length !== currentQuiz.questions?.length}
+                                                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                            >
+                                                {submittingQuiz ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                                        Submitting...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Trophy size={16} />
+                                                        Submit Quiz
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

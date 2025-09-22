@@ -3,7 +3,9 @@ import React, { useEffect, useState } from "react";
 export default function AdminQuizes() {
 	const [quizzes, setQuizzes] = useState([]);
 	const [modules, setModules] = useState([]);
+	const [lessons, setLessons] = useState([]);
 	const [loading, setLoading] = useState(false);
+	const [loadingLessons, setLoadingLessons] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState("");
 	const [success, setSuccess] = useState(false);
@@ -11,7 +13,8 @@ export default function AdminQuizes() {
 	const [form, setForm] = useState({
 		title: "",
 		description: "",
-		module: "",
+		selectedModule: "",
+		lesson: "",
 		questions: [
 			{
 				text: "",
@@ -23,6 +26,33 @@ export default function AdminQuizes() {
 	});
 
 	const apiBase = "http://localhost:3000";
+
+	const fetchLessons = async (moduleId) => {
+		if (!moduleId) {
+			setLessons([]);
+			return;
+		}
+		
+		setLoadingLessons(true);
+		try {
+			const res = await fetch(`${apiBase}/api/lessons?moduleId=${moduleId}`, { mode: "cors" });
+			const json = await res.json().catch(() => null);
+			
+			if (!res.ok) {
+				throw new Error(json?.message || `Failed to fetch lessons (${res.status})`);
+			}
+			
+			// Handle different response formats
+			const lessonList = Array.isArray(json) ? json : (json?.data?.lessons || json?.lessons || []);
+			setLessons(Array.isArray(lessonList) ? lessonList : []);
+		} catch (err) {
+			console.error("Failed to load lessons", err);
+			setError("Failed to load lessons for selected module");
+			setLessons([]);
+		} finally {
+			setLoadingLessons(false);
+		}
+	};
 
 	const fetchModules = async () => {
 		try {
@@ -64,7 +94,21 @@ export default function AdminQuizes() {
 		fetchQuizzes();
 	}, []);
 
-	const handleField = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+	const handleField = (e) => {
+		const { name, value } = e.target;
+		
+		// If module selection changes, reset lesson and fetch lessons for new module
+		if (name === "selectedModule") {
+			setForm({ 
+				...form, 
+				[name]: value, 
+				lesson: "" // Reset lesson when module changes
+			});
+			fetchLessons(value);
+		} else {
+			setForm({ ...form, [name]: value });
+		}
+	};
 
 	const addQuestion = () =>
 		setForm({
@@ -121,7 +165,8 @@ export default function AdminQuizes() {
 
 	const validateForm = () => {
 		if (!form.title.trim()) return "Title is required";
-		if (!form.module) return "Module is required";
+		if (!form.selectedModule) return "Module is required";
+		if (!form.lesson) return "Lesson is required";
 		for (let i = 0; i < form.questions.length; i++) {
 			const q = form.questions[i];
 			if (!q.text.trim()) return `Question ${i + 1} text is required`;
@@ -149,7 +194,7 @@ export default function AdminQuizes() {
 			const payload = {
 				title: form.title,
 				description: form.description,
-				module: form.module,
+				module: form.lesson, // Send lesson ID as module (since quiz model expects lesson reference)
 				createdBy: createdBy || undefined,
 				questions: form.questions.map((q) => ({
 					text: q.text,
@@ -176,9 +221,11 @@ export default function AdminQuizes() {
 			setForm({
 				title: "",
 				description: "",
-				module: "",
+				selectedModule: "",
+				lesson: "",
 				questions: [{ text: "", options: ["", ""], correctOption: 0, points: 1 }],
 			});
+			setLessons([]); // Clear lessons when form is reset
 			await fetchQuizzes();
 		} catch (err) {
 			console.error("Create quiz error:", err);
@@ -208,9 +255,50 @@ export default function AdminQuizes() {
 
 				<div>
 					<label className="block text-sm font-medium text-gray-600 mb-1">Module</label>
-					<select name="module" value={form.module} onChange={handleField} required className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring focus:ring-blue-300">
-						<option value="">Select module</option>
-						{modules.map((m) => (<option key={m._id} value={m._id}>{m.title}</option>))}
+					<select 
+						name="selectedModule" 
+						value={form.selectedModule} 
+						onChange={handleField} 
+						required 
+						className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring focus:ring-blue-300"
+					>
+						<option value="">Select module first</option>
+						{modules.map((m) => (
+							<option key={m._id} value={m._id}>
+								{m.title}
+							</option>
+						))}
+					</select>
+				</div>
+
+				<div>
+					<label className="block text-sm font-medium text-gray-600 mb-1">
+						Lesson
+						{loadingLessons && <span className="text-blue-500 ml-2">(Loading...)</span>}
+					</label>
+					<select 
+						name="lesson" 
+						value={form.lesson} 
+						onChange={handleField} 
+						required 
+						disabled={!form.selectedModule || loadingLessons}
+						className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed"
+					>
+						<option value="">
+							{!form.selectedModule 
+								? "Select a module first" 
+								: loadingLessons 
+									? "Loading lessons..." 
+									: lessons.length === 0 
+										? "No lessons found for this module"
+										: "Select lesson"
+							}
+						</option>
+						{lessons.map((lesson) => (
+							<option key={lesson._id} value={lesson._id}>
+								{lesson.title}
+							</option>
+						))}
 					</select>
 				</div>
 
@@ -260,7 +348,18 @@ export default function AdminQuizes() {
 						<div className="flex justify-between items-center">
 							<div>
 								<div className="font-semibold text-gray-800">{qz.title}</div>
-								<div className="text-xs text-gray-500">Module: {qz.module?.title || "—"}</div>
+								<div className="text-xs text-gray-500">
+									Lesson: {qz.module?.title || "Unknown"}
+									{qz.module?.module?.title && (
+										<span className="ml-2">| Module: {qz.module.module.title}</span>
+									)}
+								</div>
+								{qz.description && (
+									<div className="text-xs text-gray-600 mt-1">{qz.description}</div>
+								)}
+								<div className="text-xs text-gray-500 mt-1">
+									Questions: {qz.questions?.length || 0}
+								</div>
 							</div>
 							<div className="text-xs text-gray-400">{new Date(qz.createdAt).toLocaleString()}</div>
 						</div>

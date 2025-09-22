@@ -9,6 +9,7 @@ import applicationRoutes from "./routes/application.route.js";
 import moduleRoutes from "./routes/modules.route.js";
 import postRoutes from "./routes/posts.route.js";
 import virtualdrillRoutes from "./routes/virtualdrill.route.js";
+import attemptRoutes from "./routes/attempt.routes.js";
 import "dotenv/config";
 
 
@@ -37,6 +38,7 @@ app.use("/api/applications", applicationRoutes);
 app.use("/api/modules", moduleRoutes); // Assuming modules are handled in lessonRoutes
 app.use("/api/posts",postRoutes);
 app.use("/api/virtualdrills", virtualdrillRoutes);
+app.use("/api/attempts", attemptRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello World!");

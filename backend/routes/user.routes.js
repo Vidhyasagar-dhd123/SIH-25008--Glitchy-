@@ -7,7 +7,8 @@ import {
   getMyStudents,
   updateStudent,
   deleteStudent,
-  createBulkStudents
+  createBulkStudents,
+  getUserProfile
 } from "../controllers/userController.js";
 import roleMiddleware from "../middleware/role.middleware.js";
 import authMiddleware from "../middleware/auth.middleware.js";
@@ -26,6 +27,9 @@ router.delete("/delete/:id", deleteUser);
 
 // Institute admin routes for student management
 router.use(authMiddleware); // All routes below require authentication
+
+// Profile route (for all authenticated users)
+router.get("/profile", getUserProfile);
 
 // Student management by institute admin
 router.post("/institute/students", roleMiddleware("institute-admin"), createStudent);

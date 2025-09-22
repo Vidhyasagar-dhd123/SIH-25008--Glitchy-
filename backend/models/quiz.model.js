@@ -11,6 +11,7 @@ const QuizSchema = new mongoose.Schema({
   title: { type: String, required: true },
   quizId: { type: String, required: true, unique: true },
   description: { type: String },
+  lessonId: { type: String }, // Added lessonId field for lesson linking
   module: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

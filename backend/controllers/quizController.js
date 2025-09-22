@@ -3,7 +3,7 @@ import { User } from "../models/user.model.js";
 
 const addQuiz = async (req, res) => {
   try {
-    const { title, description, module,  questions } = req.body;
+    const { title, description, module, lessonId, questions } = req.body;
 
     if (!title || !questions || questions.length === 0) {
       return res.status(400).json({ error: "Title and questions are required" });
@@ -34,6 +34,7 @@ const addQuiz = async (req, res) => {
       title,
       quizId,
       description,
+      lessonId, // Add lessonId to the quiz creation
       module,
       createdBy: user._id,
       questions,
@@ -46,10 +47,62 @@ const addQuiz = async (req, res) => {
   }
 }
 
+const getQuizByLessonId = async (req, res) => {
+  try {
+    const { lessonId } = req.params;
+    console.log('Fetching quizzes for lessonId:', lessonId);
+    
+    // Try both approaches - first by lessonId field, then by module ObjectId
+    let quizzes = await Quiz.find({ lessonId: lessonId })
+      .populate("createdBy", "name email")
+      .populate({
+        path: "module",
+        select: "title content lessonId",
+        populate: {
+          path: "module",
+          select: "title description"
+        }
+      });
+
+    // If no quizzes found by lessonId string, try by module ObjectId
+    if (quizzes.length === 0) {
+      quizzes = await Quiz.find({ module: lessonId })
+        .populate("createdBy", "name email")
+        .populate({
+          path: "module",
+          select: "title content lessonId",
+          populate: {
+            path: "module",
+            select: "title description"
+          }
+        });
+    }
+
+    console.log(`Found ${quizzes.length} quizzes for lessonId: ${lessonId}`);
+
+    res.json({
+      success: true,
+      data: quizzes,
+      count: quizzes.length
+    });
+  } catch (err) {
+    console.error("Error fetching quizzes by lesson ID:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 const getQuiz = async (req, res) => {
   try {
     const quizzes = await Quiz.find()
       .populate("createdBy", "name email")
+      .populate({
+        path: "module",
+        select: "title content lessonId",
+        populate: {
+          path: "module",
+          select: "title description"
+        }
+      })
     res.json(quizzes);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -61,6 +114,14 @@ const getQuizById = async (req, res) => {
   try {
     const quiz = await Quiz.findById(req.params.id)
       .populate("createdBy", "name email")
+      .populate({
+        path: "module",
+        select: "title content lessonId",
+        populate: {
+          path: "module",
+          select: "title description"
+        }
+      })
       .populate({
         path: "attempts",
         populate: { path: "student", select: "name email" },
@@ -118,4 +179,4 @@ const deleteQuiz = async (req, res) => {
   }
 };
 
-export { addQuiz, updateQuiz, deleteQuiz, getQuiz , getQuizById, deleteQuizById};
+export { addQuiz, updateQuiz, deleteQuiz, getQuiz, getQuizById, getQuizByLessonId, deleteQuizById};

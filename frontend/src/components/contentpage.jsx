@@ -16,6 +16,7 @@ import AdminAddModule from "./AdminAddModule";
 import AdminQuizes from "./AdminQuizes";
 import TeacherProfile from "./TeacherProfile";
 import AdminAddLesson from "./AdminAddLesson";
+import AdminDeleteLesson from "./AdminDeleteLesson";
 import AdminAddDrill from "./AdminAddDrill";
 import ModulesRead from "./ModulesRead";
 import AddStudent from "./AddStudent";
@@ -124,6 +125,11 @@ const Content = memo(({ activePage }) => {
           return <AdminAddLesson />;
         }
         return <div className={cardClass}><h2 className="text-2xl font-bold mb-2 text-blue-500">Add Lesson</h2><p className="text-gray-700">You do not have permission to add lessons.</p></div>;
+      case "Delete Lesson":
+        if (userRole === "admin" || userRole === "institute-admin") {
+          return <AdminDeleteLesson />;
+        }
+        return <div className={cardClass}><h2 className="text-2xl font-bold mb-2 text-red-500">Delete Lesson</h2><p className="text-gray-700">You do not have permission to delete lessons.</p></div>;
       case "Quizes":
         if (userRole === "admin") {
           return <AdminQuizes />;

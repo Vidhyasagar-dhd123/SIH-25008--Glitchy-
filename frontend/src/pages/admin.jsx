@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "../components/menubar";
 import Content from "../components/contentpage";
 import Access, { studentAccess, teacherAccess, adminAccess } from '../components/access';
+import AlertEDLogo from "../assets/AlertED-1.jpg";
 
 export default function Admin() {
   const [active, setActive] = useState("Dashboard");
@@ -101,11 +102,13 @@ export default function Admin() {
           <div className="flex items-center justify-between h-16">
             {/* Brand */}
             <div className="flex items-center space-x-3">
-              <div className="bg-blue-500 text-white px-3 py-2 rounded-lg font-bold text-lg shadow-md">
-                SE
-              </div>
-              <span className="text-2xl font-extrabold text-blue-700 tracking-wide">
-                SurakshaEd
+              <img 
+                src={AlertEDLogo} 
+                alt="AlertED Logo" 
+                className="h-10 w-auto object-contain rounded-2xl"
+              />
+              <span className="text-2xl font-extrabold text-[#003e61] tracking-wide">
+                AlertED
               </span>
             </div>
 

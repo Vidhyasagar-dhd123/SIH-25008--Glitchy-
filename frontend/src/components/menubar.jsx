@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, User, BookOpen, Trophy, ListOrdered, FileText, School, UserPlus, Settings, Building2, PlusSquare, HelpCircle, Hammer, MessageSquare, GraduationCap, Zap } from 'lucide-react';
+import { LayoutDashboard, User, BookOpen, Trophy, ListOrdered, FileText, School, UserPlus, Settings, Building2, PlusSquare, HelpCircle, Hammer, MessageSquare, GraduationCap, Zap, Trash2 } from 'lucide-react';
 
 const icons = {
   Dashboard: <LayoutDashboard size={20} />,
@@ -16,6 +16,7 @@ const icons = {
   "Add Institute": <Building2 size={20} />,
   "Add Module": <PlusSquare size={20} />,
   "Add Lesson": <PlusSquare size={20} />, // added icon mapping
+  "Delete Lesson": <Trash2 size={20} />, // added icon mapping for delete lesson
   Quizes: <HelpCircle size={20} />,
   "Add Drill": <Hammer size={20} />,
   Message: <MessageSquare size={20} />,
@@ -36,6 +37,12 @@ export default function Sidebar({ adminAccess, setActive }) {
     const hasAddLesson = menuItems.some(item => item?.name === "Add Lesson");
     if (!hasAddLesson) {
       menuItems = [...menuItems, { name: "Add Lesson" }];
+    }
+    
+    // Also add "Delete Lesson" for admin and institute-admin
+    const hasDeleteLesson = menuItems.some(item => item?.name === "Delete Lesson");
+    if (!hasDeleteLesson) {
+      menuItems = [...menuItems, { name: "Delete Lesson" }];
     }
   }
   

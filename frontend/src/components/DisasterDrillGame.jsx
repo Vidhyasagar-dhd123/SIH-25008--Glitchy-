@@ -74,6 +74,14 @@ const DisasterDrillGame = () => {
           repeat: 0,
         });
 
+        this.anims.create({
+          key: "crawl",
+          frames: this.anims.generateFrameNumbers("sprite", { start: 24, end: 26 }),
+          frameRate: 30,
+          repeat: 0,
+        });
+
+
         // Fire animation
         this.anims.create({
           key: "burn",
@@ -92,7 +100,7 @@ const DisasterDrillGame = () => {
         this.physics.add.collider(this.player, this.ground);
 
         // Moving fire obstacle
-        this.movingFire = this.physics.add.sprite(200, 200, "fire").setScale(0.5).play("burn");
+        this.movingFire = this.physics.add.sprite(200, 200, "fire").setScale(0.3).play("burn");
         this.movingFire.body.setVelocityX(80);
         this.movingFire.body.setSize(50, 50); // Set collision box size
 
@@ -149,12 +157,12 @@ const DisasterDrillGame = () => {
         bg.setDisplaySize(600, 400);
         bg.setAlpha(0.8); // Slightly transparent for better gameplay visibility
         
-        this.add.text(200, 20, "Stage 2", {
-          fontSize: "28px",
+        this.add.text(200, 20, "Stage 2 - Earthquake Drill", {
+          fontSize: "24px",
           fill: "#000",
         });
 
-        this.player = this.physics.add.sprite(210, 320, "sprite").setScale(0.2).play("idle");
+        this.player = this.physics.add.sprite(210, 320, "sprite").setScale(0.5).play("idle");
         this.player.setCollideWorldBounds(true);
 
         this.ground = this.add.rectangle(200, 390, 200, 40, 0x000000, 0);
@@ -187,20 +195,84 @@ const DisasterDrillGame = () => {
         });
 
         this.cursors = this.input.keyboard.createCursorKeys();
+        
+        // Initialize earthquake state
+        this.earthquakeStarted = false;
+        this.isCrawling = false;
+        
+        // Start earthquake after 2 seconds
+        this.time.delayedCall(2000, () => {
+          this.startEarthquake();
+        });
       }
+      
+      startEarthquake() {
+        this.earthquakeStarted = true;
+        
+        // Add earthquake warning text
+        this.add.text(120, 100, "🌍 EARTHQUAKE! Please be on your knees.", {
+          fontSize: "18px",
+          fill: "#ff0000",
+          backgroundColor: "#ffffff",
+          padding: { x: 10, y: 5 }
+        });
+        
+        // Start camera shake
+        this.cameras.main.shake(10000, 0.01, true); // Shake for 10 seconds with intensity 0.01
+        
+        // Add visual earthquake effects
+        this.tweens.add({
+          targets: this.obstacles.children.entries,
+          y: '+=2',
+          duration: 100,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Power2'
+        });
+      }
+      
       update() {
         if (this.cursors.left.isDown) {
-          this.player.setVelocityX(-120);
-          this.player.play("walk", true);
-          this.player.flipX = true;
+          if (this.earthquakeStarted) {
+            // Automatically crawl during earthquake (slower movement)
+            this.player.setVelocityX(-60);
+            this.player.play("crawl", true);
+            this.player.flipX = true;
+            this.isCrawling = true;
+          } else {
+            // Normal walking before earthquake
+            this.player.setVelocityX(-120);
+            this.player.play("walk", true);
+            this.player.flipX = true;
+            this.isCrawling = false;
+          }
         } else if (this.cursors.right.isDown) {
-          this.player.setVelocityX(120);
-          this.player.play("walk", true);
-          this.player.flipX = false;
+          if (this.earthquakeStarted) {
+            // Automatically crawl during earthquake (slower movement)
+            this.player.setVelocityX(60);
+            this.player.play("crawl", true);
+            this.player.flipX = false;
+            this.isCrawling = true;
+          } else {
+            // Normal walking before earthquake
+            this.player.setVelocityX(120);
+            this.player.play("walk", true);
+            this.player.flipX = false;
+            this.isCrawling = false;
+          }
         } else {
           this.player.setVelocityX(0);
-          this.player.play("idle", true);
+          if (this.earthquakeStarted) {
+            // Stay in crawling position during earthquake when not moving
+            this.player.play("crawl", true);
+            this.isCrawling = true;
+          } else {
+            // Normal idle before earthquake
+            this.player.play("idle", true);
+            this.isCrawling = false;
+          }
         }
+        
         if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && this.player.body.blocked.down) {
           this.player.setVelocityY(-200);
         }
