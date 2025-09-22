@@ -1,7 +1,7 @@
 import express from "express";
 import Quiz from "../models/quiz.model.js";
 import Attempt from "../models/attempts.model.js";
-import { addQuiz, updateQuiz, deleteQuiz, getQuiz, getQuizById, deleteQuizById } from "../controllers/quizController.js";
+import { addQuiz, updateQuiz, deleteQuiz, getQuiz, getQuizById, getQuizByLessonId, deleteQuizById } from "../controllers/quizController.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 import roleMiddleware from "../middleware/role.middleware.js";
 
@@ -22,7 +22,13 @@ router.post("/",authMiddleware,roleMiddleware("admin"), addQuiz);
 router.get("/",authMiddleware, getQuiz);
 
 /**
- * @route   GET /api/quizzes/:id
+ * @route   GET /api/quiz/lesson/:lessonId
+ * @desc    Get quizzes by lesson ID
+ */
+router.get("/lesson/:lessonId", authMiddleware, getQuizByLessonId);
+
+/**
+ * @route   GET /api/quiz/:id
  * @desc    Get quiz by ID
  */
 router.get("/:id",authMiddleware, getQuizById);

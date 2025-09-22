@@ -1,4 +1,8 @@
 import { User, Student, InstituteAdmin, Admin } from "../models/user.model.js";
+import LessonRead from "../models/lessonReads.model.js";
+import Attempt from "../models/attempts.model.js";
+import Module from "../models/modules.model.js";
+import VirtualDrill from "../models/virtualdrill.model.js";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -583,6 +587,125 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// Get user profile with progress data
+const getUserProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    log.info("Fetching user profile", { userId, userRole });
+
+    // Get basic user info
+    let user;
+    if (userRole === 'student') {
+      user = await Student.findById(userId).populate('institute', 'instituteName');
+    } else if (userRole === 'institute-admin') {
+      user = await InstituteAdmin.findById(userId);
+    } else if (userRole === 'admin') {
+      user = await Admin.findById(userId);
+    } else {
+      user = await User.findById(userId);
+    }
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
+      });
+    }
+
+    let profileData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: userRole,
+      createdAt: user.createdAt
+    };
+
+    // Add role-specific data
+    if (userRole === 'student') {
+      // Get student-specific data and progress
+      const [
+        totalModules,
+        completedLessons,
+        quizAttempts,
+        completedDrills
+      ] = await Promise.all([
+        Module.countDocuments(),
+        LessonRead.countDocuments({ student: userId }),
+        Attempt.countDocuments({ student: userId }),
+        VirtualDrill.countDocuments({ released: true }) // Available drills
+      ]);
+
+      // Calculate preparedness score based on completed activities
+      const maxPossibleScore = 100;
+      const lessonWeight = 0.4;
+      const quizWeight = 0.4;
+      const drillWeight = 0.2;
+
+      const lessonScore = Math.min((completedLessons / 20) * 100, 100); // Assume 20 lessons for full score
+      const quizScore = Math.min((quizAttempts / 10) * 100, 100); // Assume 10 quizzes for full score
+      const drillScore = Math.min((completedDrills / 5) * 100, 100); // Assume 5 drills for full score
+
+      const preparednessScore = Math.round(
+        (lessonScore * lessonWeight) + 
+        (quizScore * quizWeight) + 
+        (drillScore * drillWeight)
+      );
+
+      profileData = {
+        ...profileData,
+        rollNumber: user.rollNumber,
+        grade: user.grade,
+        instituteName: user.institute?.instituteName || 'Unknown Institute',
+        preparednessScore,
+        modulesCompleted: completedLessons,
+        totalModules,
+        quizAttempts,
+        scheduledDrills: completedDrills,
+        liveAlerts: 2 // This could be dynamic based on current alerts
+      };
+    } else if (userRole === 'institute-admin') {
+      const studentCount = await Student.countDocuments({ institute: userId });
+      profileData = {
+        ...profileData,
+        instituteName: user.instituteName,
+        address: user.address,
+        contactNumber: user.contactNumber,
+        studentCount
+      };
+    } else if (userRole === 'admin') {
+      const [instituteCount, studentCount, moduleCount] = await Promise.all([
+        InstituteAdmin.countDocuments(),
+        Student.countDocuments(),
+        Module.countDocuments()
+      ]);
+      profileData = {
+        ...profileData,
+        district: user.district,
+        permissions: user.permissions,
+        instituteCount,
+        studentCount,
+        moduleCount
+      };
+    }
+
+    res.json({
+      success: true,
+      message: "Profile fetched successfully",
+      data: profileData
+    });
+
+  } catch (error) {
+    log.error("Error fetching user profile:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch profile",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 export { 
   createStudent, 
   createInstituteAdmin, 
@@ -591,5 +714,6 @@ export {
   getMyStudents,
   updateStudent,
   deleteStudent,
-  createBulkStudents
+  createBulkStudents,
+  getUserProfile
 };
